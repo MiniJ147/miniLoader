@@ -11,10 +11,11 @@ const BUILD_DIR = "mini-loader-builds"
 const MAIN_PATH_IDX = 0
 
 type Config struct {
-	Args       []string
-	ProjectDir string
-	BuildDir   string
-	CallingDir string
+	Args        []string
+	MainFileArg string
+	ProjectDir  string
+	BuildDir    string
+	CallingDir  string
 }
 
 func SetupConfig() (*Config, error) {
@@ -35,9 +36,13 @@ func SetupConfig() (*Config, error) {
 	if len(os.Args) < 2 || !strings.Contains(os.Args[1], "main.go") {
 		return fail("not enough args expected main.go file", nil)
 	}
-	config.Args = os.Args[1:]
+	if len(os.Args) > 2 {
+		config.Args = os.Args[2:]
+	}
 
-	err = setProjectDirectories(config, config.Args[MAIN_PATH_IDX])
+	config.MainFileArg = os.Args[1]
+
+	err = setProjectDirectories(config, config.MainFileArg)
 	return config, err
 }
 
