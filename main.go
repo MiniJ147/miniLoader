@@ -2,119 +2,118 @@ package main
 
 import (
 	"fmt"
-	"io/fs"
 	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
-	"time"
 )
 
-type Config struct {
-	ExecCmd []string
-	RootDir string
-	OrgDir  string
-}
+// var activeTree = map[string]fs.FileInfo{}
 
-var activeTree = map[string]fs.FileInfo{}
+// func GetRootDir(execCmd string) (string, string, error) {
+// 	wd, err := os.Getwd()
+// 	if err != nil {
+// 		return "", "", err
+// 	}
 
-func GetRootDir(execCmd string) (string, string, error) {
-	wd, err := os.Getwd()
-	if err != nil {
-		return "", "", err
-	}
+// 	currDir := filepath.Dir(filepath.Join(wd, execCmd))
+// 	orgDir := currDir
+// 	for {
+// 		// fmt.Println("walking on", currDir)
 
-	currDir := filepath.Dir(filepath.Join(wd, execCmd))
-	orgDir := currDir
-	for {
-		// fmt.Println("walking on", currDir)
+// 		_, err = os.ReadDir(currDir)
+// 		if err != nil {
+// 			return "", "", err
+// 		}
 
-		_, err = os.ReadDir(currDir)
-		if err != nil {
-			return "", "", err
-		}
+// 		_, err = os.Stat(currDir + "/go.mod")
+// 		if err == nil {
+// 			return currDir, orgDir, nil
+// 		}
+// 		currDir = currDir[:strings.LastIndex(currDir, "\\")]
+// 	}
+// }
 
-		_, err = os.Stat(currDir + "/go.mod")
-		if err == nil {
-			return currDir, orgDir, nil
-		}
-		currDir = currDir[:strings.LastIndex(currDir, "\\")]
-	}
-}
+// func scanFiles(root string) bool {
+// 	shouldReset := false
+// 	filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+// 		if err != nil {
+// 			return err
+// 		}
 
-func scanFiles(root string) bool {
-	shouldReset := false
-	filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
+// 		info, err := d.Info()
+// 		if err != nil {
+// 			return err
+// 		}
 
-		info, err := d.Info()
-		if err != nil {
-			return err
-		}
+// 		if !info.IsDir() && !strings.Contains(path, ".go") {
+// 			return nil
+// 		}
 
-		if !info.IsDir() && !strings.Contains(path, ".go") {
-			return nil
-		}
+// 		intialState, ok := activeTree[path]
+// 		if !ok || !intialState.ModTime().Equal(info.ModTime()) || info.Size() != intialState.Size() {
+// 			fmt.Println("need to trigger reset")
+// 			shouldReset = true
+// 			activeTree[path] = info
+// 		}
 
-		intialState, ok := activeTree[path]
-		if !ok || !intialState.ModTime().Equal(info.ModTime()) || info.Size() != intialState.Size() {
-			fmt.Println("need to trigger reset")
-			shouldReset = true
-			activeTree[path] = info
-		}
+// 		return nil
+// 	})
 
-		return nil
-	})
-
-	return shouldReset
-}
+// 	return shouldReset
+// }
 
 func main() {
+	cfg, err := SetupConfig()
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	defer cfg.CleanUp() // cleans program gracefully
+
+	fmt.Println(cfg)
+
 	// ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	// defer cancel()
 	// exe := exec.CommandContext(ctx, "test/cmd/test")
 	// buff, err := exe.Output()
 	// fmt.Println(string(buff), err)
-	dirName, err := os.MkdirTemp("", "mini-loader-build")
-	if err != nil {
-		panic(err)
-	}
-	defer os.RemoveAll(dirName)
+	// dirName, err := os.MkdirTemp("", "mini-loader-build")
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// defer os.RemoveAll(dirName)
 
-	fmt.Println(os.Getwd())
-	fmt.Println(dirName)
+	// fmt.Println(os.Getwd())
+	// fmt.Println(dirName)
 
-	if len(os.Args) < 2 {
-		fmt.Println("args not long enough, missing input file")
-		os.Exit(1)
-	}
+	// if len(os.Args) < 2 {
+	// 	fmt.Println("args not long enough, missing input file")
+	// 	os.Exit(1)
+	// }
 
 	// //setting cfg data
-	rootDir, orgDir, err := GetRootDir(os.Args[1])
-	if err != nil {
-		panic(err)
-	}
+	// rootDir, orgDir, err := GetRootDir(os.Args[1])
+	// if err != nil {
+	// 	panic(err)
+	// }
 
-	cfg := Config{
-		// ExecCmd: string{"build"},
-		RootDir: rootDir,
-		OrgDir:  orgDir,
-	}
+	// cfg := Config{
+	// 	// ExecCmd: string{"build"},
+	// 	RootDir: rootDir,
+	// 	OrgDir:  orgDir,
+	// }
 
-	fmt.Println(cfg)
-	cmd := exec.Command("go", "build", "-o", dirName, "main.go")
-	cmd.Dir = cfg.OrgDir
-	b, e := cmd.CombinedOutput()
-	fmt.Println(string(b), e, cmd.Dir)
-	fmt.Println("built")
+	// fmt.Println(cfg)
+	// cmd := exec.Command("go", "build", "-o", dirName, "main.go")
+	// cmd.Dir = cfg.OrgDir
+	// b, e := cmd.CombinedOutput()
+	// fmt.Println(string(b), e, cmd.Dir)
+	// fmt.Println("built")
 
-	runCmd := exec.Command(fmt.Sprintf("%v/main", dirName)) // exec args,)
-	b, e = runCmd.CombinedOutput()
-	fmt.Println(string(b), e)
+	// runCmd := exec.Command(fmt.Sprintf("%v/main", dirName)) // exec args,)
+	// b, e = runCmd.CombinedOutput()
+	// fmt.Println(string(b), e)
 
-	time.Sleep(10 * time.Second)
+	// time.Sleep(10 * time.Second)
 	// scanFiles(cfg.RootDir)
 	// // fmt.Println(activeTree)
 
