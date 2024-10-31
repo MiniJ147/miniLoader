@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"io/fs"
 	"os"
@@ -11,83 +10,33 @@ import (
 	"time"
 )
 
-/*
-miniLoader - live reloader written in go
-1. take input to the main.go file
-2. return up until you find the go.mod file (this will be your root directory being watched)
-3. grab instance of all .go files
-4. start the input program (main.go)
-5. start the watcher
-
-/*
--W means getting watched
-
-Approach 1: watch all files form main.go directory
-	/cmd
-		/app
-			/extra - W
-			main.go - W
-	/internal
-		... (go files)
-
-Approach 2: watch files from executing directory
-(wherever the terminal is calling from)
-/*
-	/cmd
-		/app
-			/extra - W
-			main.go - W
-	/internal
-		... (go files)
-
-terminal: $user/programs/example1> go run cmd/app/main.go
-1. take user/programs/example1 - use this as the watching directory
-
-ISSUE:
-terminal: $user/programs> go run example1/cmd/app/main.go
-it will watach all sub folders in programs/
-EX: it will watch outside files not included in our project
-
-
-Approach 3: .config file
-
-Approach 4: find the .mod file
-
-// Watch for
-- Changes on existing file
-- If new files are added
-- if files are removed
-*/
-
-// nodemon server.js == node server.js
-// go run main.go [watcher] /main
-// watcher ./main.go
-
 type Config struct {
 	ExecCmd []string
 	RootDir string
+	OrgDir  string
 }
 
 var activeTree = map[string]fs.FileInfo{}
 
-func GetRootDir(execCmd string) (string, error) {
+func GetRootDir(execCmd string) (string, string, error) {
 	wd, err := os.Getwd()
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	currDir := filepath.Dir(filepath.Join(wd, execCmd))
+	orgDir := currDir
 	for {
 		// fmt.Println("walking on", currDir)
 
 		_, err = os.ReadDir(currDir)
 		if err != nil {
-			return "", err
+			return "", "", err
 		}
 
 		_, err = os.Stat(currDir + "/go.mod")
 		if err == nil {
-			return currDir, nil
+			return currDir, orgDir, nil
 		}
 		currDir = currDir[:strings.LastIndex(currDir, "\\")]
 	}
@@ -123,46 +72,69 @@ func scanFiles(root string) bool {
 }
 
 func main() {
+	// ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	// defer cancel()
+	// exe := exec.CommandContext(ctx, "test/cmd/test")
+	// buff, err := exe.Output()
+	// fmt.Println(string(buff), err)
+	dirName, err := os.MkdirTemp("", "mini-loader-build")
+	if err != nil {
+		panic(err)
+	}
+	defer os.RemoveAll(dirName)
+
+	fmt.Println(os.Getwd())
+	fmt.Println(dirName)
+
 	if len(os.Args) < 2 {
 		fmt.Println("args not long enough, missing input file")
 		os.Exit(1)
 	}
 
-	//setting cfg data
-	rootDir, err := GetRootDir(os.Args[1])
+	// //setting cfg data
+	rootDir, orgDir, err := GetRootDir(os.Args[1])
 	if err != nil {
 		panic(err)
 	}
 
 	cfg := Config{
-		ExecCmd: append([]string{"run"}, os.Args[1:]...),
+		// ExecCmd: string{"build"},
 		RootDir: rootDir,
+		OrgDir:  orgDir,
 	}
 
-	scanFiles(cfg.RootDir)
-	// fmt.Println(activeTree)
+	fmt.Println(cfg)
+	cmd := exec.Command("go", "build", "-o", dirName, "main.go")
+	cmd.Dir = cfg.OrgDir
+	b, e := cmd.CombinedOutput()
+	fmt.Println(string(b), e, cmd.Dir)
+	fmt.Println("built")
 
-	fmt.Println("attempting to execute", cfg.ExecCmd, cfg.RootDir)
+	runCmd := exec.Command(fmt.Sprintf("%v/main", dirName)) // exec args,)
+	b, e = runCmd.CombinedOutput()
+	fmt.Println(string(b), e)
 
-	//executing go project listed by user
-	// exec.CommandContext()
+	time.Sleep(10 * time.Second)
+	// scanFiles(cfg.RootDir)
+	// // fmt.Println(activeTree)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	// fmt.Println("attempting to execute", cfg.ExecCmd, cfg.RootDir)
 
-	cmd := exec.CommandContext(ctx, "go", cfg.ExecCmd...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	// //executing go project listed by user
+	// // exec.CommandContext()
 
-	err = cmd.Start()
-	if err != nil {
-		panic(err)
-	}
-	go func() {
-		time.Sleep(5 * time.Second)
-		cmd.Cancel()
-	}()
-	cmd.Wait()
-	fmt.Println("hello")
+	// ctx, cancel := context.WithCancel(context.Background())
+	// defer cancel()
+
+	// cmd := exec.CommandContext(ctx, "go", cfg.ExecCmd...)
+	// cmd.Stdout = os.Stdout
+	// cmd.Stderr = os.Stderr
+
+	// err = cmd.Start()
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// time.Sleep(5 * time.Second)
+	// cmd.Process.Signal(os.Interrupt)
 	// fmt.Println()
 }
