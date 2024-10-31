@@ -14,7 +14,7 @@ func main() {
 	fmt.Printf("hello from test program time is %v and this is an example int value %d", time.Now().Unix(), x)
 
 	y := 0
-	fmt.Scanf("%d", &y)
+	// fmt.Scanf("%d", &y)
 	fmt.Println(y)
 	b, e := os.ReadFile("cmd/example.txt")
 	fmt.Println(string(b), e)

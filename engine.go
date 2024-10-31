@@ -14,13 +14,11 @@ import (
 
 // combines runner and watcher together for a program life cycle
 var runningCh = make(chan error)
-var resetCh = make(chan bool, 1)
 
 var activeTree = map[string]fs.FileInfo{}
 
 type Engine struct {
-	Cfg     *Config
-	Watcher *Watcher
+	Cfg *Config
 }
 
 func CreateEngine() (*Engine, error) {
@@ -32,6 +30,10 @@ func CreateEngine() (*Engine, error) {
 	return &Engine{
 		Cfg: cfg,
 	}, nil
+}
+
+func (e *Engine) CleanUp() {
+	e.Cfg.CleanUp()
 }
 
 func (e *Engine) BuildProcess() error {
@@ -73,78 +75,85 @@ func (e *Engine) RunProcess() context.CancelFunc {
 }
 
 func (e *Engine) Run() {
+	failedInit := false
+	var cancelProcess context.CancelFunc = nil
+	e.scanFiles() // initally load files
+
 	err := e.BuildProcess()
 	if err != nil {
-		os.Exit(1)
+		failedInit = true // if we fail inital build we must restart
+	} else {
+		cancelProcess = e.RunProcess()
 	}
-
-	go e.scanFiles(time.Second)
-	cancelProcess := e.RunProcess()
-	// scanner := bufio.NewScanner(stderr)
 
 	for {
 		select {
 		case err := <-runningCh:
-			if err == nil {
-				return
-			}
-
-			fmt.Println("encountered error awating file change before continuing", err)
-
-		case <-resetCh:
-			fmt.Println("detected our reset")
-			cancelProcess()
-
-			err := e.BuildProcess()
 			if err != nil {
-				fmt.Println("failed to rebuild, waiting for file change to rebuild")
-				continue
+				fmt.Println("encountered error awating file change before continuing", err)
+			} else {
+				fmt.Println("success: awaiting file changes before restarting")
 			}
 
-			cancelProcess = e.RunProcess()
-			runningCh = make(chan error)
+		default:
+			if e.scanFiles() || failedInit {
+				failedInit = false
+				fmt.Println("detected our reset")
+				if cancelProcess != nil {
+					cancelProcess()
+				}
+
+				err := e.BuildProcess()
+				if err != nil {
+					fmt.Println("failed to rebuild, waiting for file change to rebuild")
+					continue
+				}
+
+				cancelProcess = e.RunProcess()
+				runningCh = make(chan error)
+			}
+
+			time.Sleep(time.Second)
 		}
 	}
 }
 
-func (e *Engine) scanFiles(timeoutDuration time.Duration) {
-	for {
-		shouldReset := false
-		// fmt.Println(activeTree)
+func (e *Engine) scanFiles() bool {
+	shouldReset := false
+	// fmt.Println(activeTree)
 
-		filepath.WalkDir(e.Cfg.ProjectDir, func(path string, d fs.DirEntry, err error) error {
-			if err != nil {
-				return err
-			}
+	filepath.WalkDir(e.Cfg.ProjectDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
 
-			info, err := d.Info()
-			if err != nil {
-				return err
-			}
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
 
-			if !info.IsDir() && !strings.Contains(path, ".go") {
-				return nil
-			}
-
-			intialState, ok := activeTree[path]
-			if !ok || !intialState.ModTime().Equal(info.ModTime()) || info.Size() != intialState.Size() {
-				// fmt.Println("file change detected now restarting program")
-				shouldReset = true
-				activeTree[path] = info
-			}
-
+		if !info.IsDir() && !strings.Contains(path, ".go") {
 			return nil
-		})
-
-		if shouldReset {
-			resetCh <- true
 		}
 
-		time.Sleep(timeoutDuration)
-	}
+		intialState, ok := activeTree[path]
+		if !ok || !intialState.ModTime().Equal(info.ModTime()) || info.Size() != intialState.Size() {
+			// fmt.Println("file change detected now restarting program")
+			shouldReset = true
+			activeTree[path] = info
+		}
+
+		return nil
+	})
+
+	return shouldReset
 }
 
-func (e *Engine) CleanUp() {
-	fmt.Println("cleanning up...")
-	e.Cfg.CleanUp()
-}
+// func clean() {
+// 	os.RemoveAll(os.Getenv("TEMP") + "/mini-loader-builds")
+// }
+
+// func (e *Engine) CleanAfter() {
+// 	fmt.Println("cleanning up...")
+// 	e.Cfg.CleanUp()
+// }

@@ -7,8 +7,8 @@ import (
 	"strings"
 )
 
-const BUILD_DIR = "mini-loader-builds"
 const MAIN_PATH_IDX = 0
+const BUILD_DIR_PATH = "mini-loader-build"
 
 type Config struct {
 	Args        []string
@@ -26,7 +26,7 @@ func SetupConfig() (*Config, error) {
 	config := &Config{}
 
 	// set build directory
-	buildDir, err := os.MkdirTemp("", BUILD_DIR)
+	buildDir, err := os.MkdirTemp("", BUILD_DIR_PATH)
 	if err != nil {
 		return fail("failed temp file build", err)
 	}
@@ -72,5 +72,5 @@ func setProjectDirectories(cfg *Config, filePath string) error {
 }
 
 func (cfg *Config) CleanUp() {
-	os.RemoveAll(cfg.BuildDir)
+	fmt.Println("cleaning", os.RemoveAll(BUILD_DIR_PATH))
 }
